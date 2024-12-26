@@ -17,17 +17,9 @@ jobs:
         with:
           name: app-artifacts
           path: .
-          retention-days: 5
-
-  wait-for-staging-approval:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: staging-approval
-    steps:
-      - run: echo "Approved for staging deployment"
 
   deploy-staging:
-    needs: wait-for-staging-approval
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: staging
@@ -39,15 +31,8 @@ jobs:
       - name: Deploy to staging
         run: echo "Deploying to staging"
 
-  wait-for-production-approval:
-    needs: deploy-staging
-    runs-on: ubuntu-latest
-    environment: production-approval
-    steps:
-      - run: echo "Approved for production deployment"
-
   deploy-production:
-    needs: wait-for-production-approval
+    needs: deploy-staging
     runs-on: ubuntu-latest
     environment:
       name: production
