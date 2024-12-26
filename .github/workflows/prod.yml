@@ -1,13 +1,20 @@
-name: Sequential Pipeline
+name: Deployment Pipeline
 
 on:
+  # Trigger build on push to master
+  push:
+    branches:
+      - master
+  # Manual triggers for deployments
   workflow_dispatch:
     inputs:
-      run_test:
-        description: 'Run test stage'
-        type: boolean
+      stage:
+        description: 'Deployment stage'
         required: true
-        default: false
+        type: choice
+        options:
+          - stage
+          - prod
 
 jobs:
   build:
@@ -16,29 +23,42 @@ jobs:
       - uses: actions/checkout@v3
       
       - name: Build
-        run: echo "Running build step"
-      
-      - name: Save build artifacts
+        run: echo "Building application"
+        
+      - name: Save artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: build-artifacts
+          name: app-artifacts
           path: .
 
-  test:
+  deploy-stage:
     needs: build
-    if: github.event.inputs.run_test == true
     runs-on: ubuntu-latest
     environment:
-      name: test
-      url: https://test.example.com
-    
+      name: staging
+      url: https://staging.example.com
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'stage'
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Download build artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: build-artifacts
-      
-      - name: Run tests
-        run: echo "Running tests"
+          name: app-artifacts
+          
+      - name: Deploy to staging
+        run: echo "Deploying to staging"
+
+  deploy-prod:
+    needs: [build, deploy-stage]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://production.example.com
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'prod'
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: app-artifacts
+          
+      - name: Deploy to production
+        run: echo "Deploying to production"
