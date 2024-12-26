@@ -1,24 +1,29 @@
 name: Deployment Pipeline
 
+concurrency: 
+  group: deployment-pipeline
+  cancel-in-progress: false
+
 on:
-  # Trigger build on push to master
   push:
     branches:
       - master
-  # Manual triggers for deployments
   workflow_dispatch:
     inputs:
-      stage:
-        description: 'Deployment stage'
-        required: true
+      environment:
         type: choice
+        description: 'Deploy to Environment'
         options:
           - stage
           - prod
+        required: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      build_completed: ${{ steps.set-output.outputs.build_completed }}
     steps:
       - uses: actions/checkout@v3
       
@@ -30,14 +35,20 @@ jobs:
         with:
           name: app-artifacts
           path: .
+          retention-days: 5
+          
+      - name: Set build completion
+        id: set-output
+        run: echo "build_completed=true" >> $GITHUB_OUTPUT
 
   deploy-stage:
-    needs: build
     runs-on: ubuntu-latest
     environment:
       name: staging
       url: https://staging.example.com
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'stage'
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.environment == 'stage'
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v3
@@ -48,12 +59,13 @@ jobs:
         run: echo "Deploying to staging"
 
   deploy-prod:
-    needs: [build, deploy-stage]
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://production.example.com
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'prod'
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.environment == 'prod'
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v3
