@@ -1,0 +1,74 @@
+name: Multi-Step Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Pipeline stage to run'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+        - build
+        - test
+        - deploy-staging
+        - deploy-production
+
+jobs:
+  build:
+    if: github.event.inputs.stage == 'build'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: echo "Running build step"
+      - name: Save build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: .
+
+  test:
+    if: github.event.inputs.stage == 'test'
+    needs: []  # No dependencies to allow individual runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      - name: Run tests
+        run: echo "Running tests"
+
+  deploy-staging:
+    if: github.event.inputs.stage == 'deploy-staging'
+    needs: []  # No dependencies to allow individual runs
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.example.com
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      - name: Deploy to staging
+        run: echo "Deploying to staging"
+
+  deploy-production:
+    if: github.event.inputs.stage == 'deploy-production'
+    needs: []  # No dependencies to allow individual runs
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://production.example.com
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      - name: Deploy to production
+        run: echo "Deploying to production"
