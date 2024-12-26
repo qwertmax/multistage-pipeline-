@@ -8,15 +8,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.tag_version.outputs.build_id }}
     steps:
       - uses: actions/checkout@v3
+      
       - name: Build
         run: echo "Building application"
+        
+      - name: Generate build ID
+        id: tag_version
+        run: |
+          BUILD_ID=$(date +%Y%m%d)_${GITHUB_SHA::8}
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          
       - name: Save artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: app-artifacts
-          path: .
+          name: app-artifacts-${{ steps.tag_version.outputs.build_id }}
+          path: |
+            .
+            metadata.json
+          retention-days: 90
+          
+      - name: Create metadata
+        run: |
+          echo "{
+            \"build_id\": \"${{ steps.tag_version.outputs.build_id }}\",
+            \"commit\": \"${{ github.sha }}\",
+            \"branch\": \"${{ github.ref_name }}\",
+            \"time\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"
+          }" > metadata.json
 
   deploy-staging:
     needs: build
@@ -25,21 +47,40 @@ jobs:
       name: staging
       url: https://staging.example.com
     steps:
-      - uses: actions/download-artifact@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
         with:
-          name: app-artifacts
+          name: app-artifacts-${{ needs.build.outputs.build_id }}
+          
       - name: Deploy to staging
-        run: echo "Deploying to staging"
+        run: echo "Deploying to staging environment"
+        
+      - name: Record staging deployment
+        run: |
+          echo "Deployment to staging successful - Build ID: ${{ needs.build.outputs.build_id }}"
 
   deploy-production:
-    needs: deploy-staging
+    needs: [build, deploy-staging]
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://production.example.com
     steps:
-      - uses: actions/download-artifact@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
         with:
-          name: app-artifacts
+          name: app-artifacts-${{ needs.build.outputs.build_id }}
+          
       - name: Deploy to production
-        run: echo "Deploying to production"
+        run: echo "Deploying to production environment"
+        
+      - name: Record successful deployment
+        run: |
+          echo "Deployment to production successful - Build ID: ${{ needs.build.outputs.build_id }}"
+          
+      - name: Tag successful deployment
+        uses: actions/upload-artifact@v3
+        with:
+          name: successful-deploy-${{ needs.build.outputs.build_id }}
+          path: metadata.json
+          retention-days: 90
